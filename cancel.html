@@ -11,7 +11,8 @@
   用法：
   1. 把這個檔案放到 GitHub Pages（或任何 https 網址）
   2. LINE Developers 建立 LIFF（Size: Compact、Scope 勾 chat_message.write），Endpoint URL 填這個檔案的網址
-  3. 把 LIFF ID 填到下面的 LIFF_ID，也填到 Code.gs 的 CONFIG.LIFF_CANCEL_ID
+  3. 把 LIFF ID 填到 Code.gs 的 CONFIG.LIFF_CANCEL_ID 即可
+     （卡片按鈕會把 LIFF ID 一起帶過來，這個檔案不用改；下面的 LIFF_ID 只是備用）
   預覽（不連 LINE）：網址後面加 ?preview=1
 -->
 <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
@@ -72,7 +73,19 @@
     <p class="msg" id="msg"></p>
   </div>
 <script>
-  const LIFF_ID = '2012265705-miZqukl1';
+  const LIFF_ID = ''; // 備用：通常不用填，卡片按鈕的網址會帶 ?id=LIFF ID
+
+  // 從網址取得 LIFF ID：直接帶的 ?id=…，或 LINE 轉址時包在 liff.state 裡的 ?id=…
+  function pickLiffId() {
+    const q = new URLSearchParams(location.search);
+    let id = q.get('id');
+    const st = q.get('liff.state');
+    if (!id && st) {
+      try { id = new URLSearchParams(st.slice(st.indexOf('?') + 1)).get('id'); } catch (_) {}
+    }
+    id = String(id || LIFF_ID || '').trim();
+    return /^\d+-[A-Za-z0-9]+$/.test(id) ? id : '';
+  }
   const PREVIEW = new URLSearchParams(location.search).has('preview');
   const btn = document.getElementById('btn');
   const hint = document.getElementById('hint');
@@ -108,7 +121,11 @@
   document.getElementById('blank').addEventListener('click', close);
 
   if (!PREVIEW) {
-    liff.init({ liffId: LIFF_ID }).then(function () {
+    const liffId = pickLiffId();
+    if (!liffId) {
+      msg.textContent = '找不到 LIFF ID，請直接在群組打 -1（團長：請確認 Code.gs 的 LIFF_CANCEL_ID）';
+      btn.disabled = true;
+    } else liff.init({ liffId: liffId }).then(function () {
       const ctx = liff.getContext ? liff.getContext() : null;
       if (!liff.isInClient() || !ctx || ['group', 'room', 'utou'].indexOf(ctx.type) < 0) {
         msg.textContent = '請從 LINE 群組裡的名單卡片按「-1」開啟';
@@ -117,7 +134,7 @@
       }
       ready = true;
     }).catch(function (err) {
-      msg.textContent = '無法啟動，請直接在群組打 -1（' + (err && err.message ? err.message : err) + '）';
+      msg.textContent = '無法啟動，請直接在群組打 -1（LIFF ID ' + liffId + '：' + (err && err.message ? err.message : err) + '）';
       btn.disabled = true;
     });
   }
