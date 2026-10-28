@@ -58,7 +58,7 @@
   .btn:disabled { opacity: .6; }
   .hint { min-height: 20px; margin: 10px 0 0; text-align: center; font-size: 13px; color: var(--wine); font-weight: 600; visibility: hidden; }
   .hint.show { visibility: visible; }
-  .msg { margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--muted); min-height: 16px; }
+  .msg { margin: 6px 0 0; text-align: center; font-size: 12px; color: var(--muted); min-height: 16px; word-break: break-all; user-select: text; }
 </style>
 </head>
 <body>
@@ -85,6 +85,14 @@
     }
     id = String(id || LIFF_ID || '').trim();
     return /^\d+-[A-Za-z0-9]+$/.test(id) ? id : '';
+  }
+  const PAGE_VER = 'v3';
+  // 錯誤細節：LIFF 錯誤有 code（例如 INIT_FAILED、FORBIDDEN）和 message
+  function errText(err) {
+    if (!err) return '未知錯誤';
+    const code = err.code ? err.code : '';
+    const m = err.message ? err.message : (typeof err === 'string' ? err : JSON.stringify(err));
+    return (code ? code + '｜' : '') + m;
   }
   const PREVIEW = new URLSearchParams(location.search).has('preview');
   const btn = document.getElementById('btn');
@@ -115,26 +123,29 @@
       setTimeout(close, 400);
     } catch (err) {
       busy = false; btn.disabled = false;
-      msg.textContent = '送不出去，請直接在群組打 -1（' + (err && err.message ? err.message : err) + '）';
+      msg.textContent = '送不出去，請直接在群組打 -1（' + errText(err) + '）' + PAGE_VER;
     }
   });
   document.getElementById('blank').addEventListener('click', close);
 
   if (!PREVIEW) {
     const liffId = pickLiffId();
-    if (!liffId) {
+    if (typeof liff === 'undefined') {
+      msg.textContent = '無法載入 LINE 元件（網路或被擋），請直接在群組打 -1｜' + PAGE_VER;
+      btn.disabled = true;
+    } else if (!liffId) {
       msg.textContent = '找不到 LIFF ID，請直接在群組打 -1（團長：請確認 Code.gs 的 LIFF_CANCEL_ID）';
       btn.disabled = true;
     } else liff.init({ liffId: liffId }).then(function () {
       const ctx = liff.getContext ? liff.getContext() : null;
       if (!liff.isInClient() || !ctx || ['group', 'room', 'utou'].indexOf(ctx.type) < 0) {
-        msg.textContent = '請從 LINE 群組裡的名單卡片按「-1」開啟';
+        msg.textContent = '請從 LINE 群組裡的名單卡片按「-1」開啟（' + (ctx ? ctx.type : '不在 LINE 裡') + '）' + PAGE_VER;
         btn.disabled = true;
         return;
       }
       ready = true;
     }).catch(function (err) {
-      msg.textContent = '無法啟動，請直接在群組打 -1（LIFF ID ' + liffId + '：' + (err && err.message ? err.message : err) + '）';
+      msg.textContent = '無法啟動，請直接在群組打 -1｜' + errText(err) + '｜ID ' + liffId + '｜' + location.host + location.pathname + '｜' + PAGE_VER;
       btn.disabled = true;
     });
   }
